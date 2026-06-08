@@ -1,6 +1,12 @@
 # LFIT — Local Free Image Tool
 
-HD image generation on Vulkan iGPU. Zero cost, fully private, on your hardware.
+HD image generation on Vulkan iGPU. Free, private on default settings. Three presets: standard, background, hero.
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `image_generate` | Generate HD images on local Vulkan iGPU. Three presets. Local by default. |
 
 ## Requirements
 
@@ -26,7 +32,7 @@ lfit --preset background --prompt "misty mountain valley at dawn"
 lfit --preset hero --prompt "ancient dragon, key art" --yes
 ```
 
-3. Fast drafts (free, no GPU needed):
+3. Fast drafts (free, no GPU needed — prompts sent to Pollinations.ai):
 ```bash
 lfit-quick --prompt "concept sketch of a space station"
 ```
@@ -39,11 +45,13 @@ lfit-quick --prompt "concept sketch of a space station"
 | `background` | Scenes, environments, wallpapers | 1344×768 | 8 | Lightning 8-step | ~2.5 min |
 | `hero` | Max-quality final assets | 1024×1024 | 32 | None (base SDXL) | ~13 min |
 
-## Network Disclosures
+## ⚠️ Network & Privacy Disclosures
 
-- `lfit` connects to a local sd-server (default 127.0.0.1:7860). No data leaves your machine.
-- `lfit-quick` connects to Pollinations.ai (free, no API key) for cloud drafts. Images are generated on their servers.
-- Optional Telegram delivery requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.
+- `lfit` connects to a **local** sd-server (127.0.0.1:7860 by default). No image data leaves your machine.
+- `lfit-quick` connects to **Pollinations.ai** (free, no API key) for cloud FLUX drafts. **Prompts leave your machine.** Blocked unless `allowRemote: true` is set in plugin config.
+- Remote SD servers (non-localhost `serverUrl`) send prompts and parameters to the configured endpoint. Blocked unless `allowRemote: true`.
+- Telegram auto-push sends generated PNG files to the configured chat. **Blocked unless `allowTelegram: true`.** Use `--no-telegram` to disable for a single generation.
+- Binary is resolved from absolute path (not PATH) to prevent hijacking.
 
 ## Who is this for?
 

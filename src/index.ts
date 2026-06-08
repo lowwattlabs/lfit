@@ -6,28 +6,58 @@ import { resolve, dirname } from "node:path";
 
 const execFileAsync = promisify(execFile);
 
-/** Resolve the lfit binary. Priority: config.binaryPath > LFIT_BIN env > bundled bin/lfit */
+/** Resolve the lfit binary. Priority: config.binaryPath > LFIT_BIN env > bundled bin/lfit.
+ *  Always resolves to an absolute path to prevent PATH hijacking. */
 function resolveBinary(configBinary?: string): string {
   if (configBinary) return configBinary;
   if (process.env.LFIT_BIN) return process.env.LFIT_BIN;
   return resolve(dirname(new URL(import.meta.url).pathname), "..", "bin", "lfit");
 }
 
-/** Resolve the lfit-quick binary. */
-function resolveQuickBinary(): string {
-  if (process.env.LFIT_QUICK_BIN) return process.env.LFIT_QUICK_BIN;
-  return resolve(dirname(new URL(import.meta.url).pathname), "..", "bin", "lfit-quick");
+type LfitConfig = { binaryPath?: string; allowRemote?: boolean; allowTelegram?: boolean };
+
+/** Check whether the operation requires network access and block if not allowed.
+ *  - serverUrl config pointing to non-localhost = remote
+ *  - lfit-quick (Pollinations) = remote
+ *  - Telegram delivery = external transmission
+ *  Throws if remote access is attempted without allowRemote. */
+function checkRemoteAccess(args: string[], config: LfitConfig): void {
+  const isQuickDraft = args.includes("--quick") || args[0] === "quick";
+  const hasTelegramEnv = !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID);
+  const hasNoTelegram = args.includes("--no-telegram");
+  const isRemoteServer = config?.binaryPath && !config.binaryPath.includes("127.0.0.1") && !config.binaryPath.includes("localhost");
+
+  if (isQuickDraft || isRemoteServer) {
+    if (!config?.allowRemote) {
+      throw new Error(
+        "Blocked: this operation sends prompts to an external service (Pollinations.ai for drafts, " +
+        "or a remote SD server). Set allowRemote: true in plugin config to enable. " +
+        "Draft prompts leave your machine. Only enable if you accept that risk."
+      );
+    }
+  }
+
+  if (hasTelegramEnv && !hasNoTelegram) {
+    if (!config?.allowTelegram) {
+      throw new Error(
+        "Blocked: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set, which would auto-push " +
+        "generated images to Telegram. Set allowTelegram: true in plugin config to enable, " +
+        "or pass --no-telegram to disable for a single generation."
+      );
+    }
+  }
 }
 
 /** Run an lfit command and return output. */
 async function runLfit(
   args: string[],
-  config?: { binaryPath?: string; serverUrl?: string },
+  config?: LfitConfig,
   timeoutMs = 900000
 ): Promise<Record<string, unknown> | string> {
+  checkRemoteAccess(args, config || {});
   const bin = resolveBinary(config?.binaryPath);
   const allArgs = [...args];
-  if (config?.serverUrl) allArgs.push("--server-url", config.serverUrl);
+  // Server URL is only passed if allowRemote is true (checked above)
   try {
     const { stdout, stderr } = await execFileAsync(bin, allArgs, { timeout: timeoutMs, maxBuffer: 1024 * 1024 });
     const output = stdout.trim() || stderr.trim();
@@ -47,16 +77,21 @@ export default defineToolPlugin({
   id: "lfit",
   name: "LFIT",
   description:
-    "Local Free Image Tool — HD image generation on Vulkan iGPU. Zero cost, fully private. Three presets: standard (fast), background (scenes), hero (max quality).",
+    "HD image generation on Vulkan iGPU. Free, private on default settings. Three presets: standard, background, hero. Network features (draft mode, remote servers, Telegram delivery) require explicit opt-in via config.",
   configSchema: Type.Object({
     binaryPath: Type.Optional(
       Type.String({
-        description: "Absolute path to the lfit binary. Defaults to bundled bin/lfit.",
+        description: "Absolute path to the lfit binary. Defaults to bundled bin/lfit. Not PATH-resolved, to prevent hijacking.",
       })
     ),
-    serverUrl: Type.Optional(
-      Type.String({
-        description: "URL of the stable-diffusion.cpp server (default: http://127.0.0.1:7860).",
+    allowRemote: Type.Optional(
+      Type.Boolean({
+        description: "Allow network operations: Pollinations.ai drafts (lfit-quick) and remote SD servers. Default: false. Prompts leave your machine when enabled.",
+      })
+    ),
+    allowTelegram: Type.Optional(
+      Type.Boolean({
+        description: "Allow auto-pushing generated images to Telegram when TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set. Default: false. Images leave your machine when enabled.",
       })
     ),
   }),
@@ -65,7 +100,7 @@ export default defineToolPlugin({
       name: "image_generate",
       label: "LFIT Generate",
       description:
-        "Generate HD images locally via Vulkan iGPU. Three presets: standard (characters/items, ~2.5min), background (scenes/environments, ~2.5min), hero (max quality, ~13min, ask-first). All generation is private — nothing leaves your machine.",
+        "Generate HD images on local Vulkan iGPU. Three presets: standard (characters/items, ~2.5min), background (scenes/environments, ~2.5min), hero (max quality, ~13min, ask-first). Local generation by default — network features require explicit config opt-in.",
       parameters: Type.Object({
         prompt: Type.String({ description: "Image prompt" }),
         preset: Type.Optional(

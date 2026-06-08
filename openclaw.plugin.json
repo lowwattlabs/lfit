@@ -1,22 +1,22 @@
 {
   "id": "lfit",
   "name": "LFIT",
-  "description": "Local Free Image Tool — HD image generation on Vulkan iGPU. Zero cost, fully private. Three presets: standard (fast), background (scenes), hero (max quality).",
-  "version": "1.0.0",
+  "description": "HD image generation on Vulkan iGPU. Free, private on default settings. Three presets: standard, background, hero. Network features require explicit opt-in.",
+  "version": "1.0.2",
   "configSchema": {
     "type": "object",
     "properties": {
-      "serverUrl": {
+      "binaryPath": {
         "type": "string",
-        "description": "URL of the stable-diffusion.cpp server (default: http://127.0.0.1:7860)"
+        "description": "Absolute path to the lfit binary. Defaults to bundled bin/lfit. Not PATH-resolved, to prevent hijacking."
       },
-      "modelDir": {
-        "type": "string",
-        "description": "Path to SDXL model directory (default: ~/models/sdxl/)"
+      "allowRemote": {
+        "type": "boolean",
+        "description": "Allow network operations: Pollinations.ai drafts and remote SD servers. Default: false. Prompts leave your machine when enabled."
       },
-      "loraDir": {
-        "type": "string",
-        "description": "Path to LoRA directory (default: ~/models/loras/)"
+      "allowTelegram": {
+        "type": "boolean",
+        "description": "Allow auto-pushing generated images to Telegram when TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set. Default: false. Images leave your machine when enabled."
       }
     }
   },
