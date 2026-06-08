@@ -1,8 +1,8 @@
 {
   "id": "lfit",
-  "name": "LFIT",
-  "description": "HD image generation on Vulkan iGPU. Free, private on default settings. Three presets: standard, background, hero. Network features require explicit opt-in.",
-  "version": "1.0.2",
+  "name": "Vulkan LFIT",
+  "description": "Vulkan LFIT — HD image generation on iGPU. Free, private by default. Three presets: standard, background, hero. Network features require explicit opt-in.",
+  "version": "1.0.3",
   "configSchema": {
     "type": "object",
     "properties": {
