@@ -1,0 +1,36 @@
+{
+  "name": "lfit",
+  "version": "1.0.0",
+  "description": "Local Free Image Tool — HD image generation on Vulkan iGPU. Zero cost, fully private. Three presets: standard (fast), background (scenes), hero (max quality).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "private": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "openclaw": ">=2026.5.17"
+  },
+  "dependencies": {
+    "typebox": "^1.1.38"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "openclaw": "latest",
+    "typescript": "^5.9.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "compat": {
+      "pluginApi": "2026.5.17"
+    }
+  }
+}

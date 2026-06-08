@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""lfit - Local Free Image Tool: local HD image generation via the resident sd-server (Vulkan / RADV iGPU).
+
+This is the REAL-ASSET path. For fast, free drafts/iteration use lfit-quick (Pollinations).
+
+Talks to lfit-server.service at 127.0.0.1:7860 (one base SDXL resident; the server queues so only
+one generation runs at a time). Named PRESETS bake in the locked recipes; the agent picks by name.
+On success the PNG is saved to ~/.openclaw/workspace/generated-images/ and auto-pushed to Telegram.
+
+Usage:
+  lfit --preset standard   --prompt "a knight at a castle gate"
+  lfit --preset background --prompt "misty pine valley at dawn"
+  lfit --preset hero       --prompt "ancient dragon, key art" --yes
+  options: --seed N  --width W  --height H  --out PATH  --shallow-dof  --no-telegram  --yes
+
+Presets (locked 2026-05-31 after the Vulkan/SDXL benchmark):
+  standard    1024x1024  8-step Lightning   cfg 1.0  euler+sgm_uniform    (~2m30s)
+  background  1344x768    8-step Lightning   cfg 1.0  euler+sgm_uniform    (~2m30s)  [auto deep-focus]
+  hero        1024x1024  32-step base SDXL   cfg 7.0  euler+discrete       (~13 MINUTES, no LoRA)
+"""
+import argparse
+import base64
+import datetime
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.request
+import urllib.error
+
+SERVER = os.environ.get("SD_SERVER_URL", "http://127.0.0.1:7860")
+OUT_DIR = os.path.expanduser("~/.openclaw/workspace/generated-images")
+LORA_8STEP = "sdxl_lightning_8step_lora"          # filename (no .safetensors) in --lora-model-dir
+# Telegram delivery is OPTIONAL and fully env-driven -- nothing sensitive is baked into this
+# script. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the env file below (or the process
+# environment) to enable auto-push; without them the PNG is still saved locally, push is skipped.
+ENV_FILE = os.environ.get(
+    "OPENCLAW_ENV_FILE", os.path.expanduser("~/.config/systemd/user/openclaw.env"))
+
+# === PRESETS (locked recipes - edit values here if the recipe changes) =====================
+PRESETS = {
+    "standard":   dict(width=1024, height=1024, steps=8,  cfg=1.0, sampler="euler", scheduler="sgm_uniform", lora=LORA_8STEP, approx="~2m30s"),
+    "background": dict(width=1344, height=768,  steps=8,  cfg=1.0, sampler="euler", scheduler="sgm_uniform", lora=LORA_8STEP, approx="~2m30s"),
+    "hero":       dict(width=1024, height=1024, steps=32, cfg=7.0, sampler="euler", scheduler="discrete",    lora=None,       approx="~13 minutes"),
+}
+
+# === PROMPT-CRAFT  (EDITABLE plain-English rules - tune the phrasing freely) ================
+# 'background' = scenes / environments / wallpapers: we want the WHOLE frame sharp, so we append
+# deep-focus phrasing unless the user explicitly asked for a shallow / bokeh look.
+DEEP_FOCUS_SUFFIX = "wide-angle, deep depth of field, everything in sharp focus, crisp throughout"
+# Words that mean "the user wants shallow DOF / blurred background" -> then we DON'T force deep focus.
+SHALLOW_DOF_WORDS = ("shallow depth", "bokeh", "blurred background", "blurry background",
+                     "out of focus", "shallow dof", "f/1", "f/2", "macro")
+# 'standard' / portraits stay subject-focused: we add nothing automatically. If you want bokeh,
+# put it in the prompt. (This whole block is meant to be hand-edited later.)
+def craft_prompt(preset, prompt, shallow_dof):
+    p = prompt.strip()
+    asked_shallow = shallow_dof or any(w in p.lower() for w in SHALLOW_DOF_WORDS)
+    if preset == "background" and not asked_shallow:
+        p = "%s, %s" % (p, DEEP_FOCUS_SUFFIX)
+    return p
+# ===========================================================================================
+
+
+def _read_env(key):
+    """Resolve a value from the process environment first, then the openclaw.env file. Used for
+    TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID so neither is hardcoded in this script."""
+    val = os.environ.get(key)
+    if val:
+        return val.strip()
+    try:
+        with open(ENV_FILE) as fh:
+            for line in fh:
+                if line.startswith(key + "="):
+                    return line.split("=", 1)[1].strip().strip('"').rstrip("\r")
+    except OSError:
+        pass
+    return None
+
+
+def telegram_push(png_path, caption):
+    tok = _read_env("TELEGRAM_BOT_TOKEN")
+    chat = _read_env("TELEGRAM_CHAT_ID")
+    if not tok or not chat:
+        return ("telegram: skipped (set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in %s "
+                "or the environment)" % ENV_FILE)
+    try:
+        r = subprocess.run(
+            ["curl", "-sS", "--max-time", "120",
+             "-F", "chat_id=" + chat,
+             "-F", "caption=" + caption,
+             "-F", "photo=@" + png_path,
+             "https://api.telegram.org/bot%s/sendPhoto" % tok],
+            capture_output=True, text=True, timeout=140)
+        d = json.loads(r.stdout or "{}")
+        if d.get("ok"):
+            return "telegram: sent message_id=%s" % d["result"]["message_id"]
+        return "telegram: FAIL %s %s" % (d.get("error_code"), d.get("description"))
+    except Exception as exc:  # noqa: BLE001
+        return "telegram: error %s" % exc
+
+
+def warm_lora_cache():
+    """Populate the server's lora path-cache. sd-server refreshes it ONLY on GET /sdapi/v1/loras
+    (not at startup, not on txt2img), so without this a freshly-restarted server would reject the
+    lora path with 'invalid lora path'. Best-effort: any failure surfaces later as a txt2img error."""
+    try:
+        urllib.request.urlopen(SERVER + "/sdapi/v1/loras", timeout=15).read()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Local HD image generation via sd-server (Vulkan).")
+    ap.add_argument("--preset", required=True, choices=list(PRESETS))
+    ap.add_argument("--prompt", required=True)
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--width", type=int)
+    ap.add_argument("--height", type=int)
+    ap.add_argument("--out")
+    ap.add_argument("--shallow-dof", action="store_true", help="keep shallow DOF/bokeh (skip background deep-focus craft)")
+    ap.add_argument("--no-telegram", action="store_true")
+    ap.add_argument("--yes", action="store_true", help="confirm the long 'hero' run")
+    args = ap.parse_args()
+
+    cfg = PRESETS[args.preset]
+    if args.preset == "hero" and not args.yes:
+        sys.stderr.write("HOLD: 'hero' takes %s on this box. Re-run with --yes to confirm.\n" % cfg["approx"])
+        return 2
+
+    width = args.width or cfg["width"]
+    height = args.height or cfg["height"]
+    prompt = craft_prompt(args.preset, args.prompt, args.shallow_dof)
+
+    payload = {
+        "prompt": prompt, "negative_prompt": "",
+        "steps": cfg["steps"], "cfg_scale": cfg["cfg"],
+        "width": width, "height": height,
+        "sampler_name": cfg["sampler"], "scheduler": cfg["scheduler"],
+        "seed": args.seed, "batch_size": 1,
+    }
+    # sd-server INTENTIONALLY ignores <lora:...> prompt tags (examples/server/routes_sdapi.cpp:
+    # "Intentionally disable prompt-embedded LoRA tag parsing for server APIs"). A LoRA must be sent
+    # as a structured, per-request field, resolved by filename against --lora-model-dir. Because it
+    # is per-request, presets with lora=None (e.g. 'hero') omit it entirely -> pure base SDXL.
+    if cfg["lora"]:
+        warm_lora_cache()  # server builds its lora path-cache only on GET /sdapi/v1/loras
+        payload["lora"] = [{"path": cfg["lora"] + ".safetensors", "multiplier": 1.0}]
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+    out = args.out or os.path.join(
+        OUT_DIR, "lfit-%s-%s.png" % (args.preset, datetime.datetime.now().strftime("%Y%m%d-%H%M%S")))
+    out = os.path.abspath(os.path.expanduser(out))
+
+    t0 = time.time()
+    req = urllib.request.Request(SERVER + "/sdapi/v1/txt2img",
+                                 data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=1800) as resp:  # hero can run ~13 min
+            d = json.load(resp)
+    except urllib.error.URLError as exc:
+        sys.stderr.write("lfit-server request failed: %s\n(is lfit-server.service running on %s? "
+                         "`systemctl --user status lfit-server`)\n" % (exc, SERVER))
+        return 1
+
+    imgs = d.get("images") or []
+    if not imgs:
+        sys.stderr.write("no image returned: %s\n" % json.dumps(d)[:300])
+        return 1
+    raw = base64.b64decode(imgs[0].split(",", 1)[-1])
+    with open(out, "wb") as fh:
+        fh.write(raw)
+    dt = time.time() - t0
+    print(out)  # stdout = path only, so the agent can capture/attach it
+    sys.stderr.write("preset=%s %dx%d steps=%d cfg=%.1f sched=%s seed=%d  %.1fs\n"
+                     % (args.preset, width, height, cfg["steps"], cfg["cfg"], cfg["scheduler"], args.seed, dt))
+    if not args.no_telegram:
+        cap = "%s | %dx%d %dstep cfg%.1f %s | seed %d | %.0fs" % (
+            args.preset, width, height, cfg["steps"], cfg["cfg"], cfg["scheduler"], args.seed, dt)
+        sys.stderr.write(telegram_push(out, cap) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,31 @@
+{
+  "id": "lfit",
+  "name": "LFIT",
+  "description": "Local Free Image Tool — HD image generation on Vulkan iGPU. Zero cost, fully private. Three presets: standard (fast), background (scenes), hero (max quality).",
+  "version": "1.0.0",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "serverUrl": {
+        "type": "string",
+        "description": "URL of the stable-diffusion.cpp server (default: http://127.0.0.1:7860)"
+      },
+      "modelDir": {
+        "type": "string",
+        "description": "Path to SDXL model directory (default: ~/models/sdxl/)"
+      },
+      "loraDir": {
+        "type": "string",
+        "description": "Path to LoRA directory (default: ~/models/loras/)"
+      }
+    }
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "image_generate"
+    ]
+  }
+}
