@@ -2,7 +2,7 @@
   "id": "lfit",
   "name": "LFIT",
   "description": "HD image generation on Vulkan iGPU. Free, private on default settings. Three presets: standard, background, hero. Network features (draft mode, remote servers, Telegram delivery) require explicit opt-in via config and produce runtime warnings.",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "configSchema": {
     "type": "object",
     "properties": {

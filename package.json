@@ -1,6 +1,6 @@
 {
   "name": "@lowwattlabs/vulkan-lfit",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Local Free Image Tool \u2014 HD image generation on Vulkan iGPU. Zero cost, fully private. Three presets: standard (fast), background (scenes), hero (max quality).",
   "type": "module",
   "main": "./dist/index.js",
@@ -30,7 +30,7 @@
       "./dist/index.js"
     ],
     "compat": {
-      "pluginApi": "2026.5.17"
+      "pluginApi": ">=2026.5.0"
     },
     "build": {
       "openclawVersion": "2026.6.1"
