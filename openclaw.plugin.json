@@ -1,14 +1,18 @@
 {
   "id": "lfit",
-  "name": "Vulkan LFIT",
-  "description": "Vulkan LFIT — HD image generation on iGPU. Free, private by default. Three presets: standard, background, hero. Network features require explicit opt-in.",
-  "version": "1.0.3",
+  "name": "LFIT",
+  "description": "HD image generation on Vulkan iGPU. Free, private on default settings. Three presets: standard, background, hero. Network features (draft mode, remote servers, Telegram delivery) require explicit opt-in via config and produce runtime warnings.",
+  "version": "1.0.4",
   "configSchema": {
     "type": "object",
     "properties": {
       "binaryPath": {
         "type": "string",
         "description": "Absolute path to the lfit binary. Defaults to bundled bin/lfit. Not PATH-resolved, to prevent hijacking."
+      },
+      "serverUrl": {
+        "type": "string",
+        "description": "URL of the stable-diffusion.cpp server (default: http://127.0.0.1:7860). Non-localhost URLs require allowRemote: true and produce a runtime warning."
       },
       "allowRemote": {
         "type": "boolean",
@@ -21,7 +25,7 @@
     }
   },
   "activation": {
-    "onStartup": true
+    "onStartup": false
   },
   "contracts": {
     "tools": [
