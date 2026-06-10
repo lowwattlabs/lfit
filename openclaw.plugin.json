@@ -1,27 +1,27 @@
 {
-    "id": "lfit",
-    "name": "LFIT",
-    "description": "Local HD image generation on Vulkan iGPU. Free, fully private. Three presets: standard, background, hero. All generation is local — no data leaves your machine.",
-    "version": "1.1.0",
-    "configSchema": {
-        "type": "object",
-        "properties": {
-            "binaryPath": {
-                "type": "string",
-                "description": "Absolute path to the lfit binary. Defaults to bundled bin/lfit. Not PATH-resolved, to prevent hijacking."
-            },
-            "serverUrl": {
-                "type": "string",
-                "description": "URL of the stable-diffusion.cpp server (default: http://127.0.0.1:7860). Only localhost URLs are accepted."
-            }
-        }
-    },
-    "activation": {
-        "onStartup": false
-    },
-    "contracts": {
-        "tools": [
-            "image_generate"
-        ]
+  "id": "lfit",
+  "name": "LFIT",
+  "description": "Local HD image generation on Vulkan iGPU. Free, fully private. Three presets: standard, background, hero. All generation is local \u2014 no data leaves your machine.",
+  "version": "1.1.1",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "binaryPath": {
+        "type": "string",
+        "description": "Absolute path to the lfit binary. Defaults to bundled bin/lfit. Not PATH-resolved, to prevent hijacking."
+      },
+      "serverUrl": {
+        "type": "string",
+        "description": "URL of the stable-diffusion.cpp server (default: http://127.0.0.1:7860). Only localhost URLs are accepted."
+      }
     }
+  },
+  "activation": {
+    "onStartup": false
+  },
+  "contracts": {
+    "tools": [
+      "image_generate"
+    ]
+  }
 }
