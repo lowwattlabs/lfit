@@ -1,7 +1,7 @@
 {
   "name": "@lowwattlabs/vulkan-lfit",
-  "version": "1.0.5",
-  "description": "Local Free Image Tool \u2014 HD image generation on Vulkan iGPU. Zero cost, fully private. Three presets: standard (fast), background (scenes), hero (max quality).",
+  "version": "1.1.0",
+  "description": "Local HD image generation on Vulkan iGPU. Free, fully private. Three presets: standard, background, hero. All generation is local.",
   "type": "module",
   "main": "./dist/index.js",
   "private": false,

@@ -1,35 +1,27 @@
 {
-  "id": "lfit",
-  "name": "LFIT",
-  "description": "HD image generation on Vulkan iGPU. Free, private on default settings. Three presets: standard, background, hero. Network features (draft mode, remote servers, Telegram delivery) require explicit opt-in via config and produce runtime warnings.",
-  "version": "1.0.5",
-  "configSchema": {
-    "type": "object",
-    "properties": {
-      "binaryPath": {
-        "type": "string",
-        "description": "Absolute path to the lfit binary. Defaults to bundled bin/lfit. Not PATH-resolved, to prevent hijacking."
-      },
-      "serverUrl": {
-        "type": "string",
-        "description": "URL of the stable-diffusion.cpp server (default: http://127.0.0.1:7860). Non-localhost URLs require allowRemote: true and produce a runtime warning."
-      },
-      "allowRemote": {
-        "type": "boolean",
-        "description": "Allow network operations: Pollinations.ai drafts and remote SD servers. Default: false. Prompts leave your machine when enabled."
-      },
-      "allowTelegram": {
-        "type": "boolean",
-        "description": "Allow auto-pushing generated images to Telegram when TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set. Default: false. Images leave your machine when enabled."
-      }
+    "id": "lfit",
+    "name": "LFIT",
+    "description": "Local HD image generation on Vulkan iGPU. Free, fully private. Three presets: standard, background, hero. All generation is local — no data leaves your machine.",
+    "version": "1.1.0",
+    "configSchema": {
+        "type": "object",
+        "properties": {
+            "binaryPath": {
+                "type": "string",
+                "description": "Absolute path to the lfit binary. Defaults to bundled bin/lfit. Not PATH-resolved, to prevent hijacking."
+            },
+            "serverUrl": {
+                "type": "string",
+                "description": "URL of the stable-diffusion.cpp server (default: http://127.0.0.1:7860). Only localhost URLs are accepted."
+            }
+        }
+    },
+    "activation": {
+        "onStartup": false
+    },
+    "contracts": {
+        "tools": [
+            "image_generate"
+        ]
     }
-  },
-  "activation": {
-    "onStartup": false
-  },
-  "contracts": {
-    "tools": [
-      "image_generate"
-    ]
-  }
 }
