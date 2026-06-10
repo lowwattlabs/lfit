@@ -5,13 +5,14 @@ This is the REAL-ASSET path. For fast, free drafts/iteration use lfit-quick (Pol
 
 Talks to lfit-server.service at 127.0.0.1:7860 (one base SDXL resident; the server queues so only
 one generation runs at a time). Named PRESETS bake in the locked recipes; the agent picks by name.
-On success the PNG is saved to ~/.openclaw/workspace/generated-images/ and auto-pushed to Telegram.
+On success the PNG is saved to ~/.openclaw/workspace/generated-images/. All generation is fully
+local — no data ever leaves this machine.
 
 Usage:
   lfit --preset standard   --prompt "a knight at a castle gate"
   lfit --preset background --prompt "misty pine valley at dawn"
   lfit --preset hero       --prompt "ancient dragon, key art" --yes
-  options: --seed N  --width W  --height H  --out PATH  --shallow-dof  --no-telegram  --yes
+  options: --seed N  --width W  --height H  --out PATH  --shallow-dof  --yes
 
 Presets (locked 2026-05-31 after the Vulkan/SDXL benchmark):
   standard    1024x1024  8-step Lightning   cfg 1.0  euler+sgm_uniform    (~2m30s)
@@ -23,7 +24,6 @@ import base64
 import datetime
 import json
 import os
-import subprocess
 import sys
 import time
 import urllib.request
@@ -32,11 +32,6 @@ import urllib.error
 SERVER = os.environ.get("SD_SERVER_URL", "http://127.0.0.1:7860")
 OUT_DIR = os.path.expanduser("~/.openclaw/workspace/generated-images")
 LORA_8STEP = "sdxl_lightning_8step_lora"          # filename (no .safetensors) in --lora-model-dir
-# Telegram delivery is OPTIONAL and fully env-driven -- nothing sensitive is baked into this
-# script. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the env file below (or the process
-# environment) to enable auto-push; without them the PNG is still saved locally, push is skipped.
-ENV_FILE = os.environ.get(
-    "OPENCLAW_ENV_FILE", os.path.expanduser("~/.config/systemd/user/openclaw.env"))
 
 # === PRESETS (locked recipes - edit values here if the recipe changes) =====================
 PRESETS = {
@@ -63,44 +58,6 @@ def craft_prompt(preset, prompt, shallow_dof):
 # ===========================================================================================
 
 
-def _read_env(key):
-    """Resolve a value from the process environment first, then the openclaw.env file. Used for
-    TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID so neither is hardcoded in this script."""
-    val = os.environ.get(key)
-    if val:
-        return val.strip()
-    try:
-        with open(ENV_FILE) as fh:
-            for line in fh:
-                if line.startswith(key + "="):
-                    return line.split("=", 1)[1].strip().strip('"').rstrip("\r")
-    except OSError:
-        pass
-    return None
-
-
-def telegram_push(png_path, caption):
-    tok = _read_env("TELEGRAM_BOT_TOKEN")
-    chat = _read_env("TELEGRAM_CHAT_ID")
-    if not tok or not chat:
-        return ("telegram: skipped (set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in %s "
-                "or the environment)" % ENV_FILE)
-    try:
-        r = subprocess.run(
-            ["curl", "-sS", "--max-time", "120",
-             "-F", "chat_id=" + chat,
-             "-F", "caption=" + caption,
-             "-F", "photo=@" + png_path,
-             "https://api.telegram.org/bot%s/sendPhoto" % tok],
-            capture_output=True, text=True, timeout=140)
-        d = json.loads(r.stdout or "{}")
-        if d.get("ok"):
-            return "telegram: sent message_id=%s" % d["result"]["message_id"]
-        return "telegram: FAIL %s %s" % (d.get("error_code"), d.get("description"))
-    except Exception as exc:  # noqa: BLE001
-        return "telegram: error %s" % exc
-
-
 def warm_lora_cache():
     """Populate the server's lora path-cache. sd-server refreshes it ONLY on GET /sdapi/v1/loras
     (not at startup, not on txt2img), so without this a freshly-restarted server would reject the
@@ -120,7 +77,6 @@ def main():
     ap.add_argument("--height", type=int)
     ap.add_argument("--out")
     ap.add_argument("--shallow-dof", action="store_true", help="keep shallow DOF/bokeh (skip background deep-focus craft)")
-    ap.add_argument("--no-telegram", action="store_true")
     ap.add_argument("--yes", action="store_true", help="confirm the long 'hero' run")
     args = ap.parse_args()
 
@@ -176,10 +132,6 @@ def main():
     print(out)  # stdout = path only, so the agent can capture/attach it
     sys.stderr.write("preset=%s %dx%d steps=%d cfg=%.1f sched=%s seed=%d  %.1fs\n"
                      % (args.preset, width, height, cfg["steps"], cfg["cfg"], cfg["scheduler"], args.seed, dt))
-    if not args.no_telegram:
-        cap = "%s | %dx%d %dstep cfg%.1f %s | seed %d | %.0fs" % (
-            args.preset, width, height, cfg["steps"], cfg["cfg"], cfg["scheduler"], args.seed, dt)
-        sys.stderr.write(telegram_push(out, cap) + "\n")
     return 0
 
 

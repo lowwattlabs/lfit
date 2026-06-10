@@ -1,8 +1,8 @@
 {
   "id": "lfit",
   "name": "LFIT",
-  "description": "Local HD image generation on Vulkan iGPU. Free, fully private. Three presets: standard, background, hero. All generation is local \u2014 no data leaves your machine.",
-  "version": "1.1.2",
+  "description": "Local HD image generation on Vulkan iGPU. Free, fully private. Three presets: standard, background, hero. All generation is local — no data leaves your machine.",
+  "version": "1.1.3",
   "configSchema": {
     "type": "object",
     "properties": {

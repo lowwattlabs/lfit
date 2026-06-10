@@ -2,15 +2,28 @@ import { Type } from "typebox";
 import { defineToolPlugin } from "openclaw/plugin-sdk/tool-plugin";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, isAbsolute } from "node:path";
 
 const execFileAsync = promisify(execFile);
 
 /** Resolve the lfit binary. Priority: config.binaryPath > LFIT_BIN env > bundled bin/lfit.
- *  Always resolves to an absolute path to prevent PATH hijacking. */
+ *  configBinary and LFIT_BIN must be absolute paths; relative values are rejected
+ *  to prevent PATH hijacking. Falls back to the bundled binary on invalid or missing paths. */
 function resolveBinary(configBinary?: string): string {
-  if (configBinary) return configBinary;
-  if (process.env.LFIT_BIN) return process.env.LFIT_BIN;
+  if (configBinary) {
+    if (!isAbsolute(configBinary)) {
+      console.error('[lfit] configBinary must be an absolute path, ignoring:', configBinary);
+    } else {
+      return configBinary;
+    }
+  }
+  if (process.env.LFIT_BIN) {
+    if (!isAbsolute(process.env.LFIT_BIN)) {
+      console.error('[lfit] LFIT_BIN must be an absolute path, ignoring:', process.env.LFIT_BIN);
+    } else {
+      return process.env.LFIT_BIN;
+    }
+  }
   return resolve(dirname(new URL(import.meta.url).pathname), "..", "bin", "lfit");
 }
 
